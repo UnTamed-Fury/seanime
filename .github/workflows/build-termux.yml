@@ -1,72 +1,50 @@
-name: Build Seanime Server (Termux aarch64)
+name: Build Seanime Termux Server (aarch64)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-server:
-    name: Build Seanime Go Server for Termux (aarch64)
+  build-termux:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y golang-go unzip
+
+      - name: Download Web UI
+        run: |
+          echo "Downloading prebuilt Seanime Web UI..."
+          curl -L -o seanime-web-ui.zip \
+            https://github.com/UnTamed-Fury/seanime/raw/main/seanime-web-ui.zip
+          unzip seanime-web-ui.zip -d web
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.23.x
-          check-latest: true
+          go-version: "1.25.1"
 
-      - name: Install unzip
-        run: sudo apt-get update && sudo apt-get install -y unzip
-
-      - name: Download prebuilt Web UI artifact
-        run: |
-          echo "Downloading Seanime Web UI artifact..."
-          curl -L -o web-ui.zip "https://github.com/UnTamed-Fury/seanime/actions/runs/19271296845/artifacts/4533630029"
-          mkdir -p web
-          unzip web-ui.zip -d web/
-          echo "Artifact extracted to ./web"
-          ls -R web | head -50
-
-      - name: Prepare build environment
-        run: |
-          mkdir -p build
-          echo "TERMUX_PKG_BUILD_IN_SRC=true" > build/config
-          echo "Target architecture: aarch64 (Termux)"
-          uname -a
-
-      - name: Build Seanime Go server (Termux compatible)
+      - name: Build Seanime server for Termux (aarch64)
         env:
-          CGO_ENABLED: 1
-          GOARCH: arm64
           GOOS: linux
+          GOARCH: arm64
+          CGO_ENABLED: 0
         run: |
-          go mod tidy
-          go build -o build/seanime -trimpath -ldflags="-s -w"
-          echo "Build complete."
+          mkdir -p binaries
+          go build -o binaries/seanime-termux-aarch64 -trimpath -ldflags="-s -w" .
 
-      - name: Verify binary
+      - name: Compress build
         run: |
-          file build/seanime
-          du -h build/seanime
+          cd binaries
+          tar czf seanime-termux-aarch64.tar.gz seanime-termux-aarch64
+          ls -lh
 
-      - name: Upload Termux binary artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: seanime-termux-aarch64
-          path: build/seanime
-          retention-days: 14
-
-      - name: Package tarball (optional)
-        run: |
-          tar -czf seanime-termux-aarch64.tar.gz -C build seanime
-        continue-on-error: true
-
-      - name: Upload tarball
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: seanime-termux-aarch64-tarball
-          path: seanime-termux-aarch64.tar.gz
+          path: binaries/seanime-termux-aarch64.tar.gz
