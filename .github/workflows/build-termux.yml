@@ -2,10 +2,6 @@ name: Build Seanime Server (Termux aarch64)
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Build Seanime Web UI (Termux Compatible)"]
-    types:
-      - completed
 
 jobs:
   build-server:
@@ -22,24 +18,26 @@ jobs:
           go-version: 1.23.x
           check-latest: true
 
-      - name: Download web artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: seanime-web-ui
-          path: web
+      - name: Install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
 
-      - name: Verify artifact contents
+      - name: Download prebuilt Web UI artifact
         run: |
-          echo "Listing web/ directory contents:"
+          echo "Downloading Seanime Web UI artifact..."
+          curl -L -o web-ui.zip "https://github.com/UnTamed-Fury/seanime/actions/runs/19271296845/artifacts/4533630029"
+          mkdir -p web
+          unzip web-ui.zip -d web/
+          echo "Artifact extracted to ./web"
           ls -R web | head -50
 
       - name: Prepare build environment
         run: |
           mkdir -p build
           echo "TERMUX_PKG_BUILD_IN_SRC=true" > build/config
-          echo "Using aarch64 target."
+          echo "Target architecture: aarch64 (Termux)"
+          uname -a
 
-      - name: Build Go server for Termux (aarch64)
+      - name: Build Seanime Go server (Termux compatible)
         env:
           CGO_ENABLED: 1
           GOARCH: arm64
@@ -47,8 +45,9 @@ jobs:
         run: |
           go mod tidy
           go build -o build/seanime -trimpath -ldflags="-s -w"
+          echo "Build complete."
 
-      - name: Verify build output
+      - name: Verify binary
         run: |
           file build/seanime
           du -h build/seanime
@@ -60,7 +59,7 @@ jobs:
           path: build/seanime
           retention-days: 14
 
-      - name: (Optional) Package release tarball
+      - name: Package tarball (optional)
         run: |
           tar -czf seanime-termux-aarch64.tar.gz -C build seanime
         continue-on-error: true
