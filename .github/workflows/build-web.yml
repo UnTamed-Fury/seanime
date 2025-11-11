@@ -1,0 +1,47 @@
+name: Build Seanime Web UI (Termux Compatible)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "seanime-web/**"
+      - ".github/workflows/build-web.yml"
+
+jobs:
+  build-web:
+    name: Build Web UI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: "npm"
+          cache-dependency-path: seanime-web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: seanime-web
+        run: npm ci
+
+      - name: Build web interface
+        working-directory: seanime-web
+        run: npm run build
+
+      - name: Move build output to root web folder
+        run: |
+          mkdir -p web
+          cp -r seanime-web/out/* web/
+
+      - name: Verify build contents
+        run: ls -R web | head -50
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: seanime-web-ui
+          path: web/
+          retention-days: 14
