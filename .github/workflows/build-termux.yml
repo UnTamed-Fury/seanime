@@ -1,0 +1,73 @@
+name: Build Seanime Server (Termux aarch64)
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build Seanime Web UI (Termux Compatible)"]
+    types:
+      - completed
+
+jobs:
+  build-server:
+    name: Build Seanime Go Server for Termux (aarch64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.x
+          check-latest: true
+
+      - name: Download web artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: seanime-web-ui
+          path: web
+
+      - name: Verify artifact contents
+        run: |
+          echo "Listing web/ directory contents:"
+          ls -R web | head -50
+
+      - name: Prepare build environment
+        run: |
+          mkdir -p build
+          echo "TERMUX_PKG_BUILD_IN_SRC=true" > build/config
+          echo "Using aarch64 target."
+
+      - name: Build Go server for Termux (aarch64)
+        env:
+          CGO_ENABLED: 1
+          GOARCH: arm64
+          GOOS: linux
+        run: |
+          go mod tidy
+          go build -o build/seanime -trimpath -ldflags="-s -w"
+
+      - name: Verify build output
+        run: |
+          file build/seanime
+          du -h build/seanime
+
+      - name: Upload Termux binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: seanime-termux-aarch64
+          path: build/seanime
+          retention-days: 14
+
+      - name: (Optional) Package release tarball
+        run: |
+          tar -czf seanime-termux-aarch64.tar.gz -C build seanime
+        continue-on-error: true
+
+      - name: Upload tarball
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seanime-termux-aarch64-tarball
+          path: seanime-termux-aarch64.tar.gz
